@@ -35,9 +35,6 @@ def patch(rel, old, new, mode="after", where=None):
     """
     path = LL / rel
     text = path.read_text(encoding="utf-8")
-    if new in text and new != old:
-        print(f"  {rel}: already patched")
-        return
     start = 0
     if where:
         pos = text.find(where)
@@ -50,6 +47,16 @@ def patch(rel, old, new, mode="after", where=None):
     if pos < 0:
         failed.append(f"{rel}: anchor {old.strip()[:50]!r} not found")
         print(f"  {rel}: ANCHOR NOT FOUND {old.strip()[:50]!r}")
+        return
+    # already done? look at the place the change would go, not at the whole file
+    if mode == "after" and text[pos + len(old) :].startswith(new):
+        print(f"  {rel}: already patched")
+        return
+    if mode == "before" and text[max(0, pos - len(new)) : pos].endswith(new):
+        print(f"  {rel}: already patched")
+        return
+    if mode == "replace" and text[pos : pos + len(new)] == new:
+        print(f"  {rel}: already patched")
         return
     if mode == "replace":
         out = text[:pos] + new + text[pos + len(old) :]
@@ -137,7 +144,7 @@ patch(
 };
 
 
-struct llama_model_deepseek32 : public llama_model_base {""",
+""",
     mode="before",
 )
 
