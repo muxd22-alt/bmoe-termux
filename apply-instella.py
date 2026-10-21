@@ -25,18 +25,17 @@ MODEL_SOURCE = HERE / "patches" / "instella-moe.cpp"
 failed = []
 
 
-def read(rel):
-    return (LL / rel).read_text(encoding="utf-8")
+def patch(rel, old, new, mode="after", where=None):
+    """Edit one file.
 
-
-def write(rel, text):
-    (LL / rel).write_text(text, encoding="utf-8")
-
-
-def patch(rel, old, new, where=None):
-    """Insert `new` after `old`. `where` limits the search to one function."""
-    text = read(rel)
-    if new.strip() in text:
+    mode "after"  - put `new` right after `old`
+    mode "before" - put `new` right before `old`
+    mode "replace"- swap `old` for `new`
+    where         - only search inside the function whose signature contains it
+    """
+    path = LL / rel
+    text = path.read_text(encoding="utf-8")
+    if new in text and new != old:
         print(f"  {rel}: already patched")
         return
     start = 0
@@ -52,7 +51,13 @@ def patch(rel, old, new, where=None):
         failed.append(f"{rel}: anchor {old.strip()[:50]!r} not found")
         print(f"  {rel}: ANCHOR NOT FOUND {old.strip()[:50]!r}")
         return
-    write(rel, text[: pos + len(old)] + new + text[pos + len(old) :])
+    if mode == "replace":
+        out = text[:pos] + new + text[pos + len(old) :]
+    elif mode == "before":
+        out = text[:pos] + new + text[pos:]
+    else:
+        out = text[: pos + len(old)] + new + text[pos + len(old) :]
+    path.write_text(out, encoding="utf-8")
     print(f"  {rel}: patched")
 
 
@@ -66,19 +71,20 @@ else:
     shutil.copyfile(MODEL_SOURCE, dst)
     print("  src/models/instella-moe.cpp: copied")
 
-# 2. the architecture enum
+# 2. the architecture enum (before the sentinel)
 patch(
     "src/llama-arch.h",
     "    LLM_ARCH_UNKNOWN,\n",
     "    LLM_ARCH_INSTELLA_MOE,\n",
+    mode="before",
 )
 
 # 3. the name the gguf file carries
 patch(
     "src/llama-arch.cpp",
     '    { LLM_ARCH_UNKNOWN,          "(unknown)"        },',
-    '    { LLM_ARCH_INSTELLA_MOE,     "instella-moe"     },\n'
-    '    { LLM_ARCH_UNKNOWN,          "(unknown)"        },',
+    '    { LLM_ARCH_INSTELLA_MOE,     "instella-moe"     },\n',
+    mode="before",
 )
 
 # 4. the architecture uses the sm tensor path
@@ -102,6 +108,7 @@ patch(
     "src/llama-model.cpp",
     "arch == LLM_ARCH_HY_V4) {",
     "arch == LLM_ARCH_HY_V4 || arch == LLM_ARCH_INSTELLA_MOE) {",
+    mode="replace",
     where="void llama_model::print_info",
 )
 
@@ -131,6 +138,7 @@ patch(
 
 
 struct llama_model_deepseek32 : public llama_model_base {""",
+    mode="before",
 )
 
 if failed:
