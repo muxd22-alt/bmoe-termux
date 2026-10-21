@@ -102,6 +102,20 @@ cmake -S "$UPSTREAM" -B "$BUILD_DIR" "${CMAKE_FLAGS[@]}" || die "cmake configure
 say "compiling (this is the long part)"
 cmake --build "$BUILD_DIR" -j "$BUILD_JOBS" || die "compile failed"
 
+# --- 6. the web UI -----------------------------------------------------------
+# The upstream UI is the chat app: the phone browser opens
+# http://127.0.0.1:8765/ and talks to the engine on the phone. It is a svelte
+# app, so it needs node - which Termux has.
+if command -v npm >/dev/null 2>&1 && [ "${BMOE_BUILD_UI:-1}" = "1" ]; then
+  say "building the web UI (the chat app in the phone browser)"
+  if ( cd "$UPSTREAM/ui" && npm ci --no-audit --no-fund >/dev/null 2>&1 && npm run build >/dev/null 2>&1 ); then
+    cmake --build "$BUILD_DIR" --target bmoe-server-assets >/dev/null 2>&1 || true
+    say "web UI staged in $BUILD_DIR/bin/ui"
+  else
+    say "the web UI did not build - the engine still works (ai ask, and any OpenAI client)"
+  fi
+fi
+
 say "built:"
 ls -l "$BUILD_DIR/bin/bmoe-server" "$BUILD_DIR/bin/bmoe-cli" 2>/dev/null
 "$BUILD_DIR/bin/bmoe-server" --version 2>/dev/null | head -2
