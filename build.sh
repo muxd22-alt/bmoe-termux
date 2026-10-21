@@ -58,6 +58,16 @@ if ! clang $ARCH_FLAGS -c "$TMPD/t.c" -o "$TMPD/t.o" 2>/dev/null; then
 fi
 rm -rf "$TMPD"
 
+# The engine allocates gralloc buffers on Android, and those calls only exist
+# from API 26 up. Termux's clang ships with API 24 as its floor, so the build
+# has to say which Android it targets - otherwise the compiler refuses the
+# calls it sees in the source.
+ANDROID_TRIPLE=""
+if [ -d /system/lib64 ] || [ -n "${ANDROID_ROOT:-}" ]; then
+  ANDROID_TRIPLE="$(uname -m)-linux-android${BMOE_ANDROID_API:-26}"
+  say "android target: $ANDROID_TRIPLE"
+fi
+
 # OpenMP makes the decode use every core; it needs libomp, which Termux
 # installs as its own package. Without it the build uses plain threads.
 OMP=OFF
@@ -90,8 +100,10 @@ CMAKE_FLAGS=(
   -DGGML_OPENMP="$OMP"
   -DGGML_CPU_ALL_VARIANTS="$VARIANTS"
 )
-if [ -n "$ARCH_FLAGS" ]; then
-  CMAKE_FLAGS+=(-DCMAKE_C_FLAGS="$ARCH_FLAGS" -DCMAKE_CXX_FLAGS="$ARCH_FLAGS")
+if [ -n "$ARCH_FLAGS" ] || [ -n "$ANDROID_TRIPLE" ]; then
+  TARGET_FLAGS="$ARCH_FLAGS"
+  [ -n "$ANDROID_TRIPLE" ] && TARGET_FLAGS="--target=$ANDROID_TRIPLE $TARGET_FLAGS"
+  CMAKE_FLAGS+=(-DCMAKE_C_FLAGS="$TARGET_FLAGS" -DCMAKE_CXX_FLAGS="$TARGET_FLAGS")
 fi
 
 # --- 4. configure ------------------------------------------------------------
