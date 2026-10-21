@@ -44,6 +44,14 @@ if [ -n "$PINNED_COMMIT" ]; then
     && git -C "$UPSTREAM" checkout -q "$PINNED_COMMIT" \
     || say "warning: could not pin $PINNED_COMMIT, staying on $UPSTREAM"
 fi
+
+# Instella-MoE is not in upstream llama.cpp: the model comes from a community
+# fork. The patcher adds it to the pinned llama.cpp, keeping the pinned
+# expert-streaming hook this engine needs.
+if [ ! -f "$UPSTREAM/third_party/llama.cpp/src/models/instella-moe.cpp" ]; then
+  say "adding Instella-MoE support to llama.cpp"
+  python3 "$HERE/apply-instella.py" "$UPSTREAM/third_party/llama.cpp" || say "warning: the Instella patch did not apply"
+fi
 say "upstream: $(git -C "$UPSTREAM" rev-parse --short HEAD 2>/dev/null || echo unknown)"
 
 # --- 3. flags ----------------------------------------------------------------
